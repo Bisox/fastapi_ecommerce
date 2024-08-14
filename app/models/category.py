@@ -1,6 +1,6 @@
-from app.backend.bd import Base
+from app.backend.db import Base
 from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
-from sqlalchemy import relationship
+
 
 
 class Category(Base):
@@ -10,5 +10,9 @@ class Category(Base):
     name = Column(String)
     slug = Column(String, unique=True, index=True)
     is_active = Column(Boolean, default=True)
+
+
+from sqlalchemy.schema import CreateTable
+print(CreateTable(Category.__table__))
 
 
