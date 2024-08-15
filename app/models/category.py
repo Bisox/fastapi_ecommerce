@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.models.products import Product
 
+
 class Category(Base):
     __tablename__ = 'categories'
     __table_args__ = {'extend_existing': True}
@@ -11,6 +12,7 @@ class Category(Base):
     name = Column(String)
     slug = Column(String, unique=True, index=True)
     is_active = Column(Boolean, default=True)
+    parent_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
 
     products = relationship("Product", back_populates="category")
 
