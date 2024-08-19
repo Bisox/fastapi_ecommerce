@@ -41,8 +41,25 @@ async def create_product(db: Annotated[Session, Depends(get_db)], create_product
 
 
 @router.get('/{category_slug}')
-async def product_by_category(category_slug: str):
-    pass
+async def product_by_category(db: Annotated[Session, Depends(get_db)], category_slug: str):
+    category = db.execute(select(Category).where(Category.slug == category_slug)).scalar_one_or_none()
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+    subcategories = db.scalars(select(Category).where(Category.parent_id == category.id)).all()
+    categories_and_subcategories = [category.id] + [i.id for i in subcategories]
+    products_category = db.scalars(
+        select(Product).where(Product.category_id.in_(categories_and_subcategories),
+                                          Product.is_active == True, Product.stock > 0)).all()
+
+    return products_category
+
+
+
+
+
+
+
 
 
 @router.get('/detail/{product_slug}')
