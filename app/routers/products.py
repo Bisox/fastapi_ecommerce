@@ -1,4 +1,13 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, status, HTTPException
+from slugify import slugify
+from typing import Annotated
+
+from sqlalchemy.orm import Session
+from sqlalchemy import insert, select, update
+
+from app.backend.db_depends import get_db
+from app.models import *
+from app.schemas import CreateProduct
 
 router = APIRouter(
     prefix="/products",
@@ -7,13 +16,28 @@ router = APIRouter(
 
 
 @router.get("/")
-async def all_products():
-    pass
+async def all_products(db: Annotated[Session, Depends(get_db)]):
+    products = db.scalars(select(Product).where(Product.is_active == True, Product.stock > 0)).all()
+    if not products:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There are no products")
+    return products
 
 
 @router.post('/create')
-async def create_product():
-    pass
+async def create_product(db: Annotated[Session, Depends(get_db)], create_product: CreateProduct):
+    db.execute(insert(Product).values(name=create_product.name,
+                                      description=create_product.description,
+                                      price=create_product.price,
+                                      image_url=create_product.image_url,
+                                      stock=create_product.stock,
+                                      category_id=create_product.category_id,
+                                      slug=slugify(create_product.name)))
+    db.commit()
+    return {
+        'status_code': status.HTTP_201_CREATED,
+        'transaction': 'Successful'
+    }
+
 
 
 @router.get('/{category_slug}')
