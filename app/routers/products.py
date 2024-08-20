@@ -57,21 +57,54 @@ async def product_by_category(db: Annotated[Session, Depends(get_db)], category_
 
 
 
-
-
-
-
-
 @router.get('/detail/{product_slug}')
-async def product_detail(product_slug: str):
-    pass
+async def product_detail(db: Annotated[Session, Depends(get_db)], product_slug: str):
+    product = db.scalar(
+        select(Product).where(Product.slug == product_slug, Product.is_active == True, Product.stock > 0))
+    if not product:
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='There are no product'
+        )
+    return product
 
 
 @router.put('/detail/{product_slug}')
-async def update_product(product_slug: str):
-    pass
+async def update_product(db: Annotated[Session, Depends(get_db)], product_slug: str,
+                         update_product_model: CreateProduct):
+    product_update = db.scalar(select(Product).where(Product.slug == product_slug))
+    if product_update is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='There is no product found'
+        )
+
+    db.execute(update(Product).where(Product.slug == product_slug)
+               .values(name=update_product_model.name,
+                       description=update_product_model.description,
+                       price=update_product_model.price,
+                       image_url=update_product_model.image_url,
+                       stock=update_product_model.stock,
+                       category_id=update_product_model.category,
+                       slug=slugify(update_product_model.name)))
+    db.commit()
+    return {
+        'status_code': status.HTTP_200_OK,
+        'transaction': 'Product update is successful'
+    }
 
 
 @router.delete('/delete')
-async def delete_product(product_id: int):
-    pass
+async def delete_product(db: Annotated[Session, Depends(get_db)], product_id: int):
+    product_delete = db.scalar(select(Product).where(Product.id == product_id))
+    if product_delete is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='There is no product found'
+        )
+    db.execute(update(Product).where(Product.id == product_id).values(is_active=False))
+    db.commit()
+    return {
+        'status_code': status.HTTP_200_OK,
+        'transaction': 'Product delete is successful'
+    }
