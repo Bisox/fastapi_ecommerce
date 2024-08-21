@@ -3,7 +3,7 @@ from slugify import slugify
 from typing import Annotated
 
 from sqlalchemy.orm import Session
-from sqlalchemy import insert, select, update
+from sqlalchemy import insert, select, update, and_
 
 from app.backend.db_depends import get_db
 from app.models import *
@@ -17,21 +17,29 @@ router = APIRouter(
 
 @router.get("/")
 async def all_products(db: Annotated[Session, Depends(get_db)]):
-    products = db.scalars(select(Product).where(Product.is_active == True, Product.stock > 0)).all()
-    if not products:
+    is_active_condition = Product.is_active
+    stock_condition = Product.stock > 0
+
+    product = select(Product).where(and_(is_active_condition, stock_condition))
+    result = db.scalars(product).all()
+
+    if not result:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There are no products")
-    return products
+    return result
 
 
 @router.post('/create')
 async def create_product(db: Annotated[Session, Depends(get_db)], create_product: CreateProduct):
-    db.execute(insert(Product).values(name=create_product.name,
-                                      description=create_product.description,
-                                      price=create_product.price,
-                                      image_url=create_product.image_url,
-                                      stock=create_product.stock,
-                                      category_id=create_product.category_id,
-                                      slug=slugify(create_product.name)))
+
+    product_create = insert(Product).values(name=create_product.name,
+                                            description=create_product.description,
+                                            price=create_product.price,
+                                            image_url=create_product.image_url,
+                                            stock=create_product.stock,
+                                            category_id=create_product.category_id,
+                                            slug=slugify(create_product.name))
+    db.execute(product_create)
+
     db.commit()
     return {
         'status_code': status.HTTP_201_CREATED,
@@ -42,15 +50,22 @@ async def create_product(db: Annotated[Session, Depends(get_db)], create_product
 
 @router.get('/{category_slug}')
 async def product_by_category(db: Annotated[Session, Depends(get_db)], category_slug: str):
-    category = db.execute(select(Category).where(Category.slug == category_slug)).scalar_one_or_none()
-    if not category:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
-    subcategories = db.scalars(select(Category).where(Category.parent_id == category.id)).all()
+    category_query = select(Category).where(Category.slug == category_slug)
+    category = db.execute(category_query).scalar_one_or_none()
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Category not found")
+
+    subcategories_query = select(Category).where(Category.parent_id == category.id)
+    subcategories = db.scalars(subcategories_query).all()
+
     categories_and_subcategories = [category.id] + [i.id for i in subcategories]
-    products_category = db.scalars(
-        select(Product).where(Product.category_id.in_(categories_and_subcategories),
-                                          Product.is_active == True, Product.stock > 0)).all()
+
+    products_query = select(Product).where(Product.category_id.in_(categories_and_subcategories),
+                                                       Product.is_active, Product.stock > 0)
+
+    products_category = db.scalars(products_query).all()
 
     return products_category
 
