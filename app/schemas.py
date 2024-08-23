@@ -13,3 +13,12 @@ class CreateProduct(BaseModel):
 class CreateCategory(BaseModel):
     name: str
     parent_id: int | None
+
+
+class CreateUser(BaseModel):
+    first_name: str
+    last_name: str
+    username: str
+    email: str
+    password: str
+
