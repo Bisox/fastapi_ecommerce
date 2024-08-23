@@ -6,16 +6,15 @@ from logging.config import fileConfig
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy import pool
 
-from alembic import context
-
 from app.models import *
 
-from config import settings  # Импортируйте настройки
-from app.backend.db import Base  # Импортируйте вашу базу данных
+from alembic import context
 
 # Добавьте свой путь к проекту
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
+from config import settings  # Импортируйте настройки
+from app.backend.db import Base  # Импортируйте вашу базу данных
 
 # Получение конфигурации Alembic
 config = context.config
@@ -44,7 +43,7 @@ def run_migrations_offline():
 
 
 # Двигатель конфигурации для online режима
-async def run_migrations_online():  # new
+async def run_migrations_online():
     """Run migrations in 'online' mode."""
 
     # Создаем асинхронный движок
@@ -56,8 +55,9 @@ async def run_migrations_online():  # new
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
 
+    # Функция для выполнения миграций в синхронном контексте
 
-# Функция для выполнения миграций в синхронном контексте
+
 def do_run_migrations(connection):  # new
     context.configure(connection=connection, target_metadata=target_metadata)
 
