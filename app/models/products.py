@@ -7,7 +7,7 @@ from app.models import *
 class Product(Base):
     __tablename__ = 'products'
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String)
     slug = Column(String, unique=True, index=True)
     description = Column(String)

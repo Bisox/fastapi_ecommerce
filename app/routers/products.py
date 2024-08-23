@@ -1,5 +1,6 @@
 from typing import Annotated
 
+import sqlalchemy
 from fastapi import APIRouter, Depends, status, HTTPException
 from slugify import slugify
 from sqlalchemy import insert, select, update, and_
@@ -30,6 +31,7 @@ async def all_products(db: Annotated[AsyncSession, Depends(get_db)]):
 
 @router.post('/create')
 async def create_product(db: Annotated[AsyncSession, Depends(get_db)], create_product: CreateProduct):
+
     product_create = insert(Product).values(name=create_product.name,
                                             description=create_product.description,
                                             price=create_product.price,
@@ -37,23 +39,28 @@ async def create_product(db: Annotated[AsyncSession, Depends(get_db)], create_pr
                                             stock=create_product.stock,
                                             category_id=create_product.category_id,
                                             slug=slugify(create_product.name))
-    await db.execute(product_create)
+    try:
+        await db.execute(product_create)
 
-    await db.commit()
-    return {
-        'status_code': status.HTTP_201_CREATED,
-        'transaction': 'Successful'
-    }
+        await db.commit()
+
+        return {
+            'status_code': status.HTTP_201_CREATED,
+            'transaction': 'Successful'
+        }
+    except sqlalchemy.exc.IntegrityError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate key error: " + str(e))
 
 
 @router.get('/{category_slug}')
 async def product_by_category(db: Annotated[AsyncSession, Depends(get_db)], category_slug: str):
+    is_active_condition = Product.is_active
+    stock_condition = Product.stock > 0
 
-    category_query = select(Category).where(Category.slug == category_slug)
-    result = await db.execute(category_query)
-    category = result.scalar_one_or_none()
+    category = await db.scalar(select(Category).where(Category.slug == category_slug))
 
-    if not result:
+    if not category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Category not found")
 
@@ -64,7 +71,7 @@ async def product_by_category(db: Annotated[AsyncSession, Depends(get_db)], cate
     categories_and_subcategories = [category.id] + [i.id for i in subcategories]
 
     products_query = select(Product).where(Product.category_id.in_(categories_and_subcategories),
-                                           Product.is_active, Product.stock > 0)
+                                           is_active_condition, stock_condition)
 
     result = await db.scalars(products_query)
     products_category = result.all()
@@ -73,7 +80,6 @@ async def product_by_category(db: Annotated[AsyncSession, Depends(get_db)], cate
 
 
 @router.get('/detail/{product_slug}')
-
 async def product_detail(db: Annotated[AsyncSession, Depends(get_db)], product_slug: str):
     is_active_condition = Product.is_active
     stock_condition = Product.stock > 0

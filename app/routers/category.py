@@ -38,7 +38,7 @@ async def create_category(db: Annotated[AsyncSession, Depends(get_db)], create_c
 @router.put('/update_category')
 async def update_category(db: Annotated[AsyncSession, Depends(get_db)], category_id: int, update_category: CreateCategory):
     category_query = select(Category).where(Category.id == category_id)
-    category = db.scalar(category_query)
+    category = await db.scalar(category_query)
 
     if category is None:
         raise HTTPException(

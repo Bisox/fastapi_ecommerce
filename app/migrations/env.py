@@ -1,87 +1,74 @@
+import sys
+from os.path import abspath, dirname
+
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy import pool
 
 from alembic import context
 
-# -------------------------------------------------------- Добавили
-from app.backend.db import Base
-from app.models.category import Category
-from app.models.products import Product
-# --------------------------------------------------------
+from app.models import *
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
+from config import settings  # Импортируйте настройки
+from app.backend.db import Base  # Импортируйте вашу базу данных
+
+# Добавьте свой путь к проекту
+sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
+
+
+# Получение конфигурации Alembic
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
+# Установка строки подключения из настроек
+config.set_main_option('sqlalchemy.url', settings.DATABASE_URL)
+
+# Интерпретация файла конфигурации для Python logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-
-# -------------------------------------------------------- Изменили с target_metadata = None на:
+# Добавьте MetaData вашего модуля здесь
 target_metadata = Base.metadata
-# -------------------------------------------------------- Base.metadata
-
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
 
 
-def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
+# Двигатель конфигурации для offline режима
+def run_migrations_offline():
+    """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
-        target_metadata=target_metadata,
-        literal_binds=True,
-        dialect_opts={"paramstyle": "named"},
+        url=url, target_metadata=target_metadata, literal_binds=True, dialect_opts={"paramstyle": "named"}
     )
 
     with context.begin_transaction():
         context.run_migrations()
 
 
-def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
+# Двигатель конфигурации для online режима
+async def run_migrations_online():  # new
+    """Run migrations in 'online' mode."""
 
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    # Создаем асинхронный движок
+    connectable = create_async_engine(
+        config.get_main_option("sqlalchemy.url"),
         poolclass=pool.NullPool,
     )
 
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
-
-        with context.begin_transaction():
-            context.run_migrations()
+    async with connectable.connect() as connection:
+        await connection.run_sync(do_run_migrations)
 
 
+# Функция для выполнения миграций в синхронном контексте
+def do_run_migrations(connection):  # new
+    context.configure(connection=connection, target_metadata=target_metadata)
+
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+# Запуск миграций в зависимости от режима
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    run_migrations_online()
+    import asyncio
+
+    asyncio.run(run_migrations_online())
