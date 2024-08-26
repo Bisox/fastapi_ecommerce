@@ -22,10 +22,9 @@ async def get_all_categories(db: Annotated[AsyncSession, Depends(get_db)]):
 
 @router.post('/create')
 async def create_category(db: Annotated[AsyncSession, Depends(get_db)], create_category: CreateCategory):
-    category_create = (insert(Category)
-                       .values(name=create_category.name,
-                               parent_id=create_category.parent_id,
-                               slug=slugify(create_category.name)))
+    category_create = (insert(Category).values(name=create_category.name,
+                                               parent_id=create_category.parent_id,
+                                               slug=slugify(create_category.name)))
 
     await db.execute(category_create)
     await db.commit()

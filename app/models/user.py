@@ -1,5 +1,6 @@
 from app.backend.db import Base
 from sqlalchemy import Column, Integer, String, Boolean
+from app.models import *
 
 
 class User(Base):
