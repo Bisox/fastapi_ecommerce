@@ -1,27 +1,21 @@
 from fastapi import APIRouter, Depends, status, HTTPException
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm
 
-from sqlalchemy import select, insert
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from typing import Annotated
 
-from passlib.context import CryptContext
-
-from datetime import datetime, timedelta
-from jose import jwt, JWTError
+from datetime import timedelta
 
 from app.models.user import User
 from app.schemas import CreateUser
 from app.backend.db_depends import get_db
-from config import settings
-from services.auth_helpers import authenticate_user, create_access_token, get_current_user
-
+from app.services.security import bcrypt_context
+from app.services.auth_helpers import authenticate_user, create_access_token, get_current_user
 
 
 router = APIRouter(prefix='/auth', tags=['auth'])
-bcrypt_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
 @router.post('/')
@@ -38,17 +32,12 @@ async def create_user(db: Annotated[AsyncSession, Depends(get_db)], create_user:
         'transaction': 'Successful'
     }
 
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 @router.post('/token')
 async def login(db: Annotated[AsyncSession, Depends(get_db)], form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     user = await authenticate_user(db, form_data.username, form_data.password)
-
-    if not user or user.is_active == False:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Could not validate user'
-        )
-
     token = await create_access_token(user.username,
                                       user.id,
                                       user.is_admin,
