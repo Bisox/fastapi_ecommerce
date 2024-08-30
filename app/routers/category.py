@@ -102,3 +102,4 @@ async def delete_category(db: Annotated[AsyncSession, Depends(get_db)],
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='You must be admin user for this'
         )
+
