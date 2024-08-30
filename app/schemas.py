@@ -22,3 +22,5 @@ class CreateUser(BaseModel):
     email: str
     password: str
 
+
+
