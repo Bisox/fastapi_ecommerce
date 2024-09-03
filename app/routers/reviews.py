@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Depends
+
+from fastapi import APIRouter, Depends, status, HTTPException
+from sqlalchemy.dialects.mysql import insert
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import insert, select, update, and_
 
 from typing import Annotated
 
-from sqlalchemy.orm import joinedload
 
 from app.backend.db_depends import get_db
 from app.models import *
+from app.services.auth_helpers import get_current_user
+from app.schemas import CreateReview
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
@@ -44,8 +47,58 @@ async def products_reviews(db: Annotated[AsyncSession, Depends(get_db)], product
 
     return result if result else {'message': 'Отзывы не найдены'}
 
+
 @router.post('create')
-async def add_review():
+async def add_review(db: Annotated[AsyncSession, Depends(get_db)],
+                     get_user: Annotated[dict, Depends(get_current_user)],
+                     create_review: CreateReview,
+                     product_slug: str,):
+    if get_user.get('is_customer'):
+
+        product_query = select(Product).where(Product.slug == product_slug)
+        product = await db.scalar(product_query)
+        if not product:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="Product not found")
+
+        rating_create = insert(Rating).values(grade=create_review.grade,
+                                              user_id=get_user.get('id'),
+                                              product_id=product.id
+        ).returning(Rating.id)
+
+        rating_result = await db.execute(rating_create)
+        rating_id = rating_result.scalar()
+
+        review_create = insert(Review).values(user_id=get_user.get('id'),
+                                              product_id=product.id,
+                                              rating_id=rating_id,
+                                              comment=create_review.comment
+        )
+
+        await db.execute(review_create)
+        await db.commit()
+
+        ratings_query = select(Rating.grade).where(Rating.product_id == product.id)
+        ratings = await db.scalars(ratings_query)
+        ratings_list = ratings.all()
+
+        average_rating = sum(ratings_list) / len(ratings_list)
+
+
+        update_product = product.__table__.update().where(Product.id == product.id).values(rating=average_rating)
+        await db.execute(update_product)
+        await db.commit()
+
+        return {
+            'status_code': status.HTTP_201_CREATED,
+            'transaction': 'Successful'
+        }
+
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='You are not authorized to use this method'
+        )
 
 
 
