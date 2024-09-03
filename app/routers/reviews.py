@@ -41,11 +41,11 @@ async def products_reviews(db: Annotated[AsyncSession, Depends(get_db)], product
         rating = await db.scalar(rating_query)
 
         result.append({
-            'отзыв': review.comment,
-            'оценка': rating.grade if rating else None
+            'review': review.comment,
+            'grade': rating.grade if rating else None
         })
 
-    return result if result else {'message': 'Отзывы не найдены'}
+    return result if result else {'message': 'No reviews found'}
 
 
 @router.post('create')
@@ -102,11 +102,47 @@ async def add_review(db: Annotated[AsyncSession, Depends(get_db)],
 
 
 
+@router.delete('/delete/{product_slug}')
+async def delete_review(db: Annotated[AsyncSession,
+                        Depends(get_db)], product_slug: str,
+                        get_user: Annotated[dict, Depends(get_current_user)]):
 
+    product_query = select(Product).where(Product.slug == product_slug)
+    product = await db.scalar(product_query)
 
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='There is no product found')
 
+    if not get_user.get('is_admin'):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='You are not authorized to use this method'
+        )
 
+    review_query = select(Review).where(Review.product_id == product.id)
+    reviews = await db.scalars(review_query)
 
+    if not reviews:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='No reviews found for this product'
+        )
+
+    for review in reviews:
+        update_rating_query = update(Rating).where(Rating.id == review.rating_id).values(is_active=False)
+        await db.execute(update_rating_query)
+
+        update_review_query = update(Review).where(Review.id == review.id).values(is_active=False)
+        await db.execute(update_review_query)
+
+    await db.commit()
+
+    return {
+        'status_code': status.HTTP_200_OK,
+        'transaction': 'Product reviews and ratings deactivation is successful'
+    }
 
 
 
